@@ -1,8 +1,36 @@
 name: Publish package to npmjs
 
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Commit ref for checkout'
+        required: false
+        type: string
+        default: ''
+      sdk_version:
+        description: 'The version to publish (e.g. v1.0.0)'
+        required: true
+        type: string
+      sdk_tag:
+        description: 'Semicolon-separated list of tags (e.g., "rc;rc.1"). First tag is primary.'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit ref for checkout'
+        required: false
+        type: string
+        default: ''
+      sdk_version:
+        description: 'The version to publish (e.g. v1.0.0)'
+        required: true
+        type: string
+      sdk_tag:
+        description: 'Semicolon-separated list of tags (e.g., "rc;rc.1"). First tag is primary.'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,35 +47,26 @@ jobs:
         with:
           node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
-          
-      - name: Extract version from release tag
-        id: version
+      
+      - name: Upgrade npm for OIDC support
         shell: bash
         run: |
-          # Remove 'v' prefix if present (e.g., v1.0.0 -> 1.0.0)
-          VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Extracted version: $VERSION"
-          
-      - name: Update package.json version
-        working-directory: packages/workflow-engine-sdk
+          npm install -g npm@^11.5.1
+          npm --version
+
+      - name: Verify npm authentication
         shell: bash
         run: |
-          npm pkg set version="${{ steps.version.outputs.version }}"
+          echo "Verifying npm authentication..."
+          npm whoami --registry=https://registry.npmjs.org || echo "Authentication check failed"
           
       - name: Install dependencies
-        run: npm ci
-        
-      - name: Run tests
-        working-directory: packages/workflow-engine-sdk
-        run: npm test
+        run: npm install
         
       - name: Build package
-        working-directory: packages/workflow-engine-sdk
+        working-directory: .
         run: npm run build
         
       - name: Publish to npm
-        working-directory: packages/workflow-engine-sdk
+        working-directory: .
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,14 +1,10 @@
-name: Kaleido Workflow Engine TypeScript SDK Release
+name: Chris Bygrave Test Release
 
 permissions:
   contents: read
   id-token: write
 on:
   workflow_call:
-    secrets:
-      NPM_TOKEN:
-        description: 'NPM token'
-        required: true
     inputs:
       ref:
         description: 'Commit ref for checkout'
@@ -40,8 +36,6 @@ on:
         type: string
 jobs:
   publish:
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,8 +48,12 @@ jobs:
         with:
           node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
-      - name: Install pre-requisites
-        uses: ./.github/actions/setup
+      
+      - name: Upgrade npm for OIDC support
+        shell: bash
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
       
       - name: Prepare Clean Version Number
         id: prep_version
@@ -66,7 +64,7 @@ jobs:
       - name: Override SDK version
         uses: ./.github/actions/update-json
         with:
-          file: 'packages/workflow-engine-sdk/package.json'
+          file: 'package.json'
           key: 'version'
           value: ${{ steps.prep_version.outputs.clean_version }}
       
@@ -91,21 +89,19 @@ jobs:
 
       - name: Publish to npm with primary tag
         continue-on-error: true
-        working-directory: packages/workflow-engine-sdk
+        working-directory: .
         shell: bash
         run: |
           set -e
           npm run build
           npm publish --provenance --access public --tag ${{ steps.parse_tags.outputs.primary_tag }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Add additional dist-tags
         if: steps.parse_tags.outputs.additional_tags != ''
         shell: bash
         run: |
           # The version for `dist-tag add` must not have the 'v' prefix
-          PACKAGE_SPEC="@kaleido-io/workflow-engine-sdk@${{ steps.prep_version.outputs.clean_version }}"
+          PACKAGE_SPEC="chrisbygrave-test@${{ steps.prep_version.outputs.clean_version }}"
           
           echo "Adding tags for $PACKAGE_SPEC..."
           
@@ -116,6 +112,4 @@ jobs:
               npm dist-tag add "$PACKAGE_SPEC" "$tag"
             fi
           done <<< "${{ steps.parse_tags.outputs.additional_tags }}"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   
